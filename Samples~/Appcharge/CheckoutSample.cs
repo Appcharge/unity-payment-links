@@ -32,8 +32,9 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
 
     public void OnSessionSuccess(CheckoutResponse response)
     {
-        PaymentLinksController.Instance.OpenCheckout(response.url, response.checkoutSessionToken, response.purchaseId);
+        PaymentLinksController.Instance.OpenCheckout(response.purchaseId, response.parsedUrl);
     }
+    
     public void OnSessionFailed(string error)
     {
         _txtLogger.text = "Checkout Session Failed: " + error;
