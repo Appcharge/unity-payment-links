@@ -40,6 +40,18 @@ namespace Appcharge.PaymentLinks.Platforms.Android
 			catch { return null; }
 		}
 
+		private static string GetQuantityString(AndroidJavaObject javaProduct)
+		{
+			if (javaProduct == null)
+				return string.Empty;
+
+			var s = GetSafeString(javaProduct, "quantity");
+			if (!string.IsNullOrEmpty(s))
+				return s;
+
+			return string.Empty;
+		}
+
 		private static int? GetSafeInt(AndroidJavaObject obj, string fieldName)
 		{
 			if (obj == null) return null;
@@ -53,20 +65,6 @@ namespace Appcharge.PaymentLinks.Platforms.Android
 				if (double.TryParse(s, System.Globalization.NumberStyles.Any,
 									System.Globalization.CultureInfo.InvariantCulture, out var d))
 					return (int)d;
-				return null;
-			}
-		}
-
-		private static double? GetSafeDouble(AndroidJavaObject obj, string fieldName)
-		{
-			if (obj == null) return null;
-			try { return obj.Get<double>(fieldName); }
-			catch
-			{
-				var s = GetSafeString(obj, fieldName);
-				if (double.TryParse(s, System.Globalization.NumberStyles.Any,
-									System.Globalization.CultureInfo.InvariantCulture, out var d))
-					return d;
 				return null;
 			}
 		}
@@ -117,37 +115,13 @@ namespace Appcharge.PaymentLinks.Platforms.Android
 
 				var name = GetSafeString(javaProduct, "name") ?? string.Empty;
 				var sku = GetSafeString(javaProduct, "sku") ?? string.Empty;
-
-				int quantity = 0;
-				try
-				{
-					try { quantity = javaProduct.Get<int>("quantity"); }
-					catch
-					{
-						try { quantity = (int)javaProduct.Get<long>("quantity"); }
-						catch
-						{
-							try { quantity = (int)javaProduct.Get<double>("quantity"); }
-							catch
-							{
-								var qStr = GetSafeString(javaProduct, "quantity");
-								if (!int.TryParse(qStr, out quantity))
-								{
-									if (double.TryParse(qStr, System.Globalization.NumberStyles.Any,
-											System.Globalization.CultureInfo.InvariantCulture, out var d))
-										quantity = (int)d;
-								}
-							}
-						}
-					}
-				}
-				catch { quantity = 0; }
+				var quantityStr = GetQuantityString(javaProduct);
 
 				items[i] = new ProductModel
 				{
 					name = name,
 					sku = sku,
-					amount = quantity.ToString()
+					amount = quantityStr
 				};
 			}
 
