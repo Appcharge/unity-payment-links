@@ -1,4 +1,5 @@
 ## [2.4.1] - 2026-04-19
+
 ### Updated
 - Item amounts will now be presented as a string instead of int.
 
