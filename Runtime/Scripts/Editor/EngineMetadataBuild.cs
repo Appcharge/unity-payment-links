@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.RegularExpressions;
+using Appcharge.PaymentLinks.Config;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -8,16 +9,14 @@ using UnityEditor;
 namespace Appcharge.PaymentLinks.Editor
 {
     /// <summary>
-    /// Single source for engine metadata injected at build time into Android (buildConfigField) and iOS (ACPaymentLinks.plist).
+    /// Single source for engine metadata injected at build time into Android (manifestPlaceholders / meta-data) and iOS (ACPaymentLinks.plist).
     /// Native plugins read these; Unity runtime no longer passes them to init.
     /// </summary>
     public static class EngineMetadataBuild
     {
         public const string EngineName = "unity";
 
-        private const string FallbackSdkVersion = "2.6.0";
-
-        /// <summary>Read from package.json version; falls back to FallbackSdkVersion if unreadable.</summary>
+        /// <summary>Read from package.json version; falls back to SdkVersion.UnitySdkVersion if unreadable.</summary>
         public static string EngineSdkVersion
         {
             get
@@ -34,10 +33,8 @@ namespace Appcharge.PaymentLinks.Editor
                     }
                     catch { }
                 }
-                return FallbackSdkVersion;
-#else
-                return FallbackSdkVersion;
 #endif
+                return SdkVersion.UnitySdkVersion;
             }
         }
 

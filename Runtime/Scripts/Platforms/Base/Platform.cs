@@ -7,42 +7,31 @@ namespace Appcharge.PaymentLinks.Platforms.Base {
         protected BaseInit _init;
         protected BaseOpenCheckout _openCheckout;
         protected BaseSdkVersion _sdkVersion;
-        protected BasePricePoints _pricePoints;
         public ICheckoutPurchase Callback { get; set; }
         protected abstract void InitializeComponents();
 
-        public void Init(string customerId, ICheckoutPurchase callback)
+        public void Init(ICheckoutPurchase callback)
         {
             this.Callback = callback;
             InitializeComponents();
-            _init.Initialize(customerId, callback);
+            _init.Initialize(callback);
         }
         
-        public void Init(string checkoutToken, string environment, string customerId, ICheckoutPurchase callback)
+        public void Init(string checkoutToken, string environment, ICheckoutPurchase callback)
         {
             this.Callback = callback;
             InitializeComponents();
-            _init.Initialize(checkoutToken, environment, customerId, callback);
+            _init.Initialize(checkoutToken, environment, callback);
         }
         
-        public void OpenCheckout(string url, string sessionToken, string purchaseId)
+        public void OpenCheckout(string purchaseId, string parsedUrl, string customerId)
         {
-            _openCheckout.OpenCheckout(url, sessionToken, purchaseId);
-        }
-        
-        public void OpenCheckout(string purchaseId, string parsedUrl)
-        {
-            _openCheckout.OpenCheckout(purchaseId, parsedUrl);
+            _openCheckout.OpenCheckout(purchaseId, parsedUrl, customerId);
         }
         
         public string GetSdkVersion()
         {
             return _sdkVersion.GetSdkVersion();
-        }
-        
-        public void GetPricePoints()
-        {
-            _pricePoints.GetPricePoints();
         }
 
         public abstract void ConfigurePlatform(string property, object value);

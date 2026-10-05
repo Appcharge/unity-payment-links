@@ -8,9 +8,6 @@ using UnityEngine;
 namespace Appcharge.PaymentLinks.Editor {
     public class MainTemplatePrebuild : Prebuilder
     {
-        private const string AndroidPaymentLinksVersion = "1.7.0";
-        private const string AndroidPaymentLinksId = "com.appcharge:android-payment-links";
-
         public MainTemplatePrebuild(string path, AppchargePrebuildEditor appchargePrebuildEditor, AppchargeConfig appchargeConfig) : base(path, appchargePrebuildEditor, appchargeConfig)
         {
         }
@@ -21,18 +18,11 @@ namespace Appcharge.PaymentLinks.Editor {
                 if (File.Exists(_path))
                 {
                     string originalGradle = File.ReadAllText(_path);
-                    string gradleTemplate = originalGradle;
-
-                    string androidPaymentLinksDep = $"implementation '{AndroidPaymentLinksId}:{AndroidPaymentLinksVersion}'";
-
-                    gradleTemplate = Regex.Replace(
-                        gradleTemplate,
-                        @"implementation\s+'com\.appcharge:android-payment-links:[^']+'",
-                        androidPaymentLinksDep);
+                    string gradleTemplate = RemoveEngineBuildConfigFields(originalGradle);
 
                     var dependenciesToAdd = new List<(string, string)>
                     {
-                        (androidPaymentLinksDep, AndroidPaymentLinksId)
+                        ("implementation 'com.appcharge:android-payment-links:2.0.0'", "com.appcharge:android-payment-links")
                     };
                     
                     if (!_appchargeConfig.ExcludeCoreKtx)
@@ -64,33 +54,31 @@ namespace Appcharge.PaymentLinks.Editor {
                         }
                     }
 
-                    // Engine metadata: BuildConfig + manifestPlaceholders for merged manifest meta-data (${ENGINE_*}).
                     const string defaultConfigMarker = "defaultConfig {";
                     int dcIndex = gradleTemplate.IndexOf(defaultConfigMarker);
                     if (dcIndex >= 0)
                     {
-                        int insertAfterOpen = dcIndex + defaultConfigMarker.Length;
+                        string n = GroovyDoubleQuotedString(EngineMetadataBuild.EngineName);
+                        string v = GroovyDoubleQuotedString(Application.unityVersion);
+                        string s = GroovyDoubleQuotedString(EngineMetadataBuild.EngineSdkVersion);
+
+                        gradleTemplate = UpsertManifestPlaceholder(gradleTemplate, "ENGINE_NAME", n, out bool insertName);
+                        gradleTemplate = UpsertManifestPlaceholder(gradleTemplate, "ENGINE_VERSION_NAME", v, out bool insertVersion);
+                        gradleTemplate = UpsertManifestPlaceholder(gradleTemplate, "ENGINE_SDK_VERSION", s, out bool insertSdk);
+
                         string injection = "";
-                        if (!gradleTemplate.Contains("buildConfigField \"String\", \"ENGINE_NAME\""))
-                        {
-                            string engineName = EscapeGradleString(EngineMetadataBuild.EngineName);
-                            string engineVersion = EscapeGradleString(Application.unityVersion);
-                            string sdkVersion = EscapeGradleString(EngineMetadataBuild.EngineSdkVersion);
-                            injection += "\n        buildConfigField \"String\", \"ENGINE_NAME\", \"" + engineName + "\"" +
-                                "\n        buildConfigField \"String\", \"ENGINE_VERSION_NAME\", \"" + engineVersion + "\"" +
-                                "\n        buildConfigField \"String\", \"ENGINE_SDK_VERSION\", \"" + sdkVersion + "\"";
-                        }
-                        if (!gradleTemplate.Contains("manifestPlaceholders[\"ENGINE_NAME\"]"))
-                        {
-                            string n = GroovyDoubleQuotedString(EngineMetadataBuild.EngineName);
-                            string v = GroovyDoubleQuotedString(Application.unityVersion);
-                            string s = GroovyDoubleQuotedString(EngineMetadataBuild.EngineSdkVersion);
-                            injection += "\n        manifestPlaceholders[\"ENGINE_NAME\"] = " + n +
-                                "\n        manifestPlaceholders[\"ENGINE_VERSION_NAME\"] = " + v +
-                                "\n        manifestPlaceholders[\"ENGINE_SDK_VERSION\"] = " + s;
-                        }
+                        if (insertName)
+                            injection += "\n        manifestPlaceholders[\"ENGINE_NAME\"] = " + n;
+                        if (insertVersion)
+                            injection += "\n        manifestPlaceholders[\"ENGINE_VERSION_NAME\"] = " + v;
+                        if (insertSdk)
+                            injection += "\n        manifestPlaceholders[\"ENGINE_SDK_VERSION\"] = " + s;
+
                         if (injection.Length > 0)
+                        {
+                            int insertAfterOpen = dcIndex + defaultConfigMarker.Length;
                             gradleTemplate = gradleTemplate.Insert(insertAfterOpen, injection);
+                        }
                     }
 
                     if (missingDependencies.Count > 0)
@@ -154,13 +142,40 @@ namespace Appcharge.PaymentLinks.Editor {
             return -1;
         }
 
-        private static string EscapeGradleString(string value)
+        /// <summary>
+        /// Replaces an existing double-quoted placeholder assignment, or signals insert when absent.
+        /// If the key is present in an unexpected format, leaves it alone to avoid duplicates.
+        /// </summary>
+        private static string UpsertManifestPlaceholder(string gradleTemplate, string key, string quotedValue, out bool needsInsert)
         {
-            if (string.IsNullOrEmpty(value)) return "\\\"\\\"";
-            return "\\\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\\\"";
+            needsInsert = false;
+            string assignmentPrefix = "manifestPlaceholders[\"" + key + "\"]";
+            string pattern = "manifestPlaceholders\\[\"" + Regex.Escape(key) + "\"\\]\\s*=\\s*\"[^\"]*\"";
+            var regex = new Regex(pattern);
+
+            if (regex.IsMatch(gradleTemplate))
+            {
+                return regex.Replace(gradleTemplate, assignmentPrefix + " = " + quotedValue, 1);
+            }
+
+            if (gradleTemplate.Contains(assignmentPrefix))
+            {
+                return gradleTemplate;
+            }
+
+            needsInsert = true;
+            return gradleTemplate;
         }
 
-        /// <summary>Groovy double-quoted literal for manifestPlaceholders RHS (escapes $ for Groovy GString).</summary>
+        private static string RemoveEngineBuildConfigFields(string gradleTemplate)
+        {
+            return Regex.Replace(
+                gradleTemplate,
+                @"^\s*(?://\s*)?buildConfigField\s+""String"",\s*""ENGINE_(?:NAME|VERSION_NAME|SDK_VERSION)""[^\n]*\r?\n",
+                string.Empty,
+                RegexOptions.Multiline);
+        }
+
         private static string GroovyDoubleQuotedString(string value)
         {
             if (string.IsNullOrEmpty(value)) return "\"\"";

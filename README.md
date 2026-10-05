@@ -1,13 +1,17 @@
 # Appcharge Payment Links SDK (Unity)
 A lightweight Unity SDK for integrating **Appcharge Payment Links** into your game.
-Use it to open a secure checkout, handle purchase callbacks, and fetch price points with minimal setup.
+Use it to open a secure checkout and handle purchase callbacks with minimal setup.
+
+**Supported platforms:** Android, iOS, WebGL, and Unity Editor (simulation).
+
 ---
 ## Features
 - :link: Open Appcharge checkout directly from your Unity game
-- :credit_card: Receive purchase success / failure callbacks
-- :moneybag: Fetch available price points
+- :credit_card: Receive purchase success / failure / cancel callbacks
 - :jigsaw: Easy integration using `ICheckoutPurchase`
+- :gear: Automatic platform integration via `AppchargeConfig` (manifest, Gradle, iOS entitlements, and more)
 - :package: Distributed as a Unity Package Manager (UPM) package
+
 ---
 ## Installation (UPM via Git URL)
 1. Open **Unity**
@@ -15,104 +19,173 @@ Use it to open a secure checkout, handle purchase callbacks, and fetch price poi
 3. Click the **+** button → **Add package from git URL…**
 4. Enter your Git URL
 5. Click **Add**
+
+Import the included sample from the Package Manager if you want a ready-made integration reference.
+
+---
+## Configuration
+Create an `AppchargeConfig` asset via **Appcharge → Configuration → AppchargeConfig** and place it under `Resources/Appcharge/`.
+
+Key settings:
+- **Checkout Public Key** and **Environment** — required for `Init(this)`
+- **Browser Mode** — `Internal` (in-app) or `External` (system browser)
+- **Enable Integration Options** — automatic Android/iOS/WebGL build-time setup
+- **Enable Debug Mode** — prints integration changes to the Unity console; details are also written to `Logs/Appcharge/AppchargeIntegrationLogs.log`
+
+---
+## Configuration
+Create an **AppchargeConfig** asset via **Appcharge → Configuration → AppchargeConfig** and place it at `Assets/Resources/Appcharge/AppchargeConfig.asset`.
+
+Set:
+- **Environment** (Sandbox, Staging, or Production)
+- **Checkout Public Key** (from the Publisher Dashboard)
 ---
 ## Basic Usage
 ### 1. Import Required Namespaces
-    using Appcharge.PaymentLinks;
-    using Appcharge.PaymentLinks.Interfaces;
-    using Appcharge.PaymentLinks.Models;
-    using UnityEngine;
+```c#
+using Appcharge.PaymentLinks;
+using Appcharge.PaymentLinks.Interfaces;
+using Appcharge.PaymentLinks.Models;
+using UnityEngine;
+```
+
 ### 2. Implement `ICheckoutPurchase`
 Create a MonoBehaviour that receives callbacks from the SDK:
 ```c#
-    public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
+public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
+{
+    public string CustomerId = "John Doe";
+
+    public void Init()
     {
-        public AppchargeEnvironment Environment;
+        PaymentLinksController.Instance.Init(this);
+    }
+
+    public void OnSessionSuccess(CheckoutResponse response)
+    {
+        PaymentLinksController.Instance.OpenCheckout(response.purchaseId, response.parsedUrl, CustomerId);
+    }
+
+    public void OnPurchaseSuccess(OrderResponseModel order)
+    {
+        Debug.Log($"Purchase Success: OrderId={order.orderId}, PaymentMethod={order.paymentMethodName}");
+    }
+
+    public void OnPurchaseCanceled(ErrorMessage error, OrderResponseModel order)
+    {
         public string CustomerId = "John Doe";
-        // Initialize the SDK
+
         public void Init()
         {
-            PaymentLinksController.Instance.Init(CustomerId, this);
+            PaymentLinksController.Instance.Init(this);
         }
-        // Backend returns checkout session → open checkout
+
         public void OnSessionSuccess(CheckoutResponse response)
         {
-            PaymentLinksController.Instance.OpenCheckout(response.purchaseId, response.parsedUrl);
+            PaymentLinksController.Instance.OpenCheckout(response.purchaseId, response.parsedUrl, CustomerId);
         }
-        // Fetch price points
-        public void GetPricePoints()
-        {
-            PaymentLinksController.Instance.GetPricePoints();
-        }
-        // --- ICheckoutPurchase callbacks ---
+
         public void OnPurchaseSuccess(OrderResponseModel order)
         {
             Debug.Log($"Purchase Success: OrderId={order.orderId}, PaymentMethod={order.paymentMethodName}");
         }
+
+        public void OnPurchaseCanceled(ErrorMessage error, OrderResponseModel order)
+        {
+            Debug.Log($"Purchase Canceled: Code={error.code}, Message={error.message}, OrderId={order?.orderId}");
+        }
+
         public void OnPurchaseFailed(ErrorMessage error, OrderResponseModel order)
         {
             Debug.LogError($"Purchase Failed: Code={error.code}, Message={error.message}, OrderId={order?.orderId}");
         }
+
         public void OnInitialized()
         {
             Debug.Log("Payment Links SDK Initialized: " + PaymentLinksController.Instance.GetSdkVersion());
         }
+
         public void OnInitializeFailed(ErrorMessage error)
         {
             Debug.LogError($"Init Failed: Code={error.code}, Message={error.message}");
         }
-        public void OnPricePointsSuccess(PricePointsModel pricePoints)
-        {
-            Debug.Log($"Price Points Success: {pricePoints.pricingPoints.Length} price points received");
-        }
-        public void OnPricePointsFail(ErrorMessage error)
-        {
-            Debug.LogError($"Price Points Fail: {error.message}");
-        }
     }
+
+    public void OnPurchaseFailed(ErrorMessage error, OrderResponseModel order)
+    {
+        Debug.LogError($"Purchase Failed: Code={error.code}, Message={error.message}, OrderId={order?.orderId}");
+    }
+
+    public void OnInitialized()
+    {
+        Debug.Log("Payment Links SDK Initialized: " + PaymentLinksController.Instance.GetSdkVersion());
+    }
+
+    public void OnInitializeFailed(ErrorMessage error)
+    {
+        Debug.LogError($"Init Failed: Code={error.code}, Message={error.message}");
+    }
+}
 ```
+
 ---
 ## Typical Integration Flow
 ### **1. Initialize the SDK**
+Uses credentials from `AppchargeConfig`:
 ```c#
-    PaymentLinksController.Instance.Init(CustomerId, this);
+PaymentLinksController.Instance.Init(this);
 ```
+
+Or pass credentials explicitly:
+```c#
+PaymentLinksController.Instance.Init(checkoutPublicKey, "sandbox", this);
+```
+Or pass credentials explicitly:
+```c#
+    PaymentLinksController.Instance.Init(checkoutPublicKey, "sandbox", this);
+```
+Always call `Init` before `OpenCheckout`.
 ### **2. Create a checkout session (your backend)** 
 Your backend returns the following:
 - `purchaseId`
-- `parsedUrl` (recommended), or `url`, `checkoutSessionToken`, and `purchaseId`
+- `parsedUrl`
+
 ### **3. Open checkout**
+Pass the customer ID when opening checkout (not during init):
 ```c#
-    PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl);
-    // or (legacy):
-    PaymentLinksController.Instance.OpenCheckout(url, checkoutSessionToken, purchaseId);
+PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl, customerId);
 ```
-### **4. Handle purchase callbacks**
+### **4. Handle callbacks**
+- `OnInitialized()`
+- `OnInitializeFailed(ErrorMessage error)`
 - `OnPurchaseSuccess(OrderResponseModel order)`
+- `OnPurchaseCanceled(ErrorMessage error, OrderResponseModel order)`
 - `OnPurchaseFailed(ErrorMessage error, OrderResponseModel order)`
-### **5. Fetch price points**
-```C#
-    PaymentLinksController.Instance.GetPricePoints();
-```
-Callbacks:
-- `OnPricePointsSuccess(PricePointsModel pricePoints)`
-- `OnPricePointsFail(ErrorMessage error)`
+
 ---
 ## SDK API Overview
 ### **PaymentLinksController**
-- Init(string customerId, ICheckoutPurchase callback)
-- Init(string checkoutToken, string environment, string customerId, ICheckoutPurchase callback)
-- OpenCheckout(string purchaseId, string parsedUrl)
-- OpenCheckout(string url, string checkoutSessionToken, string purchaseId)
-- GetPricePoints()
-- GetSdkVersion()
+- `Init(ICheckoutPurchase callback)` — reads credentials from AppchargeConfig
+- `Init(string checkoutToken, string environment, ICheckoutPurchase callback)`
+- `OpenCheckout(string purchaseId, string parsedUrl, string customerId)`
+- `GetSdkVersion()`
+- `SetConfiguration(string property, object value)` — e.g. `"browserMode"`, `"debugMode"` (platform-specific)
 ### **Models**
-- CheckoutResponse
-- OrderResponseModel
-- PricePointsModel
-- ErrorMessage
+- `CheckoutResponse`
+- `OrderResponseModel`
+- `ErrorMessage`
+- `BrowserMode` — `Internal`, `External`
+
 ### **Interface**
-- ICheckoutPurchase
+- `ICheckoutPurchase`
+
+---
+## Migration from 2.x
+- **`customerId` moved to `OpenCheckout`** — `Init` no longer accepts a customer ID
+- **Legacy `OpenCheckout(url, sessionToken, purchaseId)` removed** — use `OpenCheckout(purchaseId, parsedUrl, customerId)`
+- **Price points API removed** — `GetPricePoints()` and related callbacks are no longer available
+- **Browser mode unified** — use `BrowserMode` in `AppchargeConfig` instead of separate iOS/Android browser settings
+
 ---
 ## Support
 For help or integration questions:

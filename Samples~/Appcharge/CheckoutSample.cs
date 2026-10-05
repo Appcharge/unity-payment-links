@@ -9,7 +9,6 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
 {
     [SerializeField] private GameObject _initPopup;
     [SerializeField] private Button _btnOpenCheckout;
-    [SerializeField] private Button _btnGetPricePoints;
     [SerializeField] private Text _environmentText;
     [SerializeField] private Text _loggerText;
     [SerializeField] private InputField _inputCustomerId;
@@ -35,7 +34,7 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
             return;
 
         _initPopup.SetActive(false);
-        PaymentLinksController.Instance.Init(_customerId, this);
+        PaymentLinksController.Instance.Init(this);
         LogMessage("Waiting for SDK to initialize.");
     }
 
@@ -43,10 +42,19 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
     /// To open the checkout, you must obtain purchaseId and parsedUrl from your server.
     /// Do not modify the arguments. The SDK will handle the rest.
     /// (Create Checkout Session API: https://docs.appcharge.com/api-reference/checkout/checkout-session/create-checkout-session)
-    /// Using the response from the API, call PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl);
+    /// Using the response from the API, call PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl, customerId);
     /// </summary>
     public void OpenCheckout()
     {
+        if (_inputCustomerId != null && !string.IsNullOrEmpty(_inputCustomerId.text))
+            _customerId = _inputCustomerId.text.Trim();
+
+        if (string.IsNullOrWhiteSpace(_customerId))
+        {
+            LogMessage("Error: Customer ID is empty. Please enter a customer ID before opening checkout.");
+            return;
+        }
+
         string purchaseId = "";
         string parsedUrl = "";
 
@@ -56,30 +64,11 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
             return;
         }
 
-        PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl);
-    }
-
-    public void GetPricePoints()
-    {
-        if (PaymentLinksController.Instance == null)
-        {
-            LogMessage("Error: PaymentLinksController not ready. Initialize the SDK first.");
-            return;
-        }
-
-        PaymentLinksController.Instance.GetPricePoints();
+        PaymentLinksController.Instance.OpenCheckout(purchaseId, parsedUrl, _customerId);
     }
 
     private bool Validation()
     {
-        if (_inputCustomerId != null && !string.IsNullOrEmpty(_inputCustomerId.text))
-            _customerId = _inputCustomerId.text.Trim();
-
-        if (string.IsNullOrWhiteSpace(_customerId))
-        {
-            LogMessage("Error: Customer ID is empty. Please enter a customer ID before initializing.");
-            return false;
-        }
         if (_config == null)
         {
             LogMessage("Error: AppchargeConfig not found. Please create one via Appcharge > Configuration > AppchargeConfig.");
@@ -99,6 +88,12 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
         LogMessage(string.Format("Purchase Success:\nOrderId: {0}\nPayment Method: {1}", order?.orderId, order?.paymentMethodName));
     }
 
+    public void OnPurchaseCanceled(ErrorMessage error, OrderResponseModel order)
+    {
+        _btnOpenCheckout.interactable = true;
+        LogMessage(string.Format("Purchase Canceled:\nOrderId: {0}\nPayment Method: {1}", order?.orderId, order?.paymentMethodName));
+    }
+
     public void OnPurchaseFailed(ErrorMessage error, OrderResponseModel order)
     {
         _btnOpenCheckout.interactable = true;
@@ -108,23 +103,12 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
     public void OnInitialized()
     {
         _btnOpenCheckout.interactable = true;
-        _btnGetPricePoints.interactable = true;
         LogMessage("SDK Initialized: " + (PaymentLinksController.Instance != null ? PaymentLinksController.Instance.GetSdkVersion() : "?"));
     }
 
     public void OnInitializeFailed(ErrorMessage error)
     {
         LogMessage(string.Format("Code: {0}\nMessage: {1}", error?.code, error?.message));
-    }
-
-    public void OnPricePointsSuccess(PricePointsModel pricePoints)
-    {
-        LogMessage("Price Points Success: " + (pricePoints?.pricingPoints?.Length ?? 0));
-    }
-
-    public void OnPricePointsFail(ErrorMessage error)
-    {
-        LogMessage(string.Format("Price Points Fail: {0}", error?.message ?? "unknown"));
     }
 
     public void ShowInitializationPopup(bool show)
@@ -144,7 +128,6 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
     {
         if (_initPopup == null) Debug.LogWarning("[CheckoutSample] _initPopup is not assigned.");
         if (_btnOpenCheckout == null) Debug.LogWarning("[CheckoutSample] _btnOpenCheckout is not assigned.");
-        if (_btnGetPricePoints == null) Debug.LogWarning("[CheckoutSample] _btnGetPricePoints is not assigned.");
         if (_environmentText == null) Debug.LogWarning("[CheckoutSample] _environmentText is not assigned.");
         if (_loggerText == null) Debug.LogWarning("[CheckoutSample] _loggerText is not assigned.");
     }
