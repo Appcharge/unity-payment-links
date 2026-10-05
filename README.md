@@ -61,11 +61,6 @@ public class CheckoutSample : MonoBehaviour, ICheckoutPurchase
         PaymentLinksController.Instance.Init(this);
     }
 
-    public void OnSessionSuccess(CheckoutResponse response)
-    {
-        PaymentLinksController.Instance.OpenCheckout(response.purchaseId, response.parsedUrl, CustomerId);
-    }
-
     public void OnPurchaseSuccess(OrderResponseModel order)
     {
         Debug.Log($"Purchase Success: OrderId={order.orderId}, PaymentMethod={order.paymentMethodName}");
